@@ -1,15 +1,18 @@
 # Load environment file
-import os
-from dotenv import load_dotenv
-load_dotenv()
-
 import logging.config
+import os
+import pickle
 
+import uvicorn
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
+from fusionbase.DataStream import DataStream
 
-from routers import router
+from Service import Service
 from middlewares import router_logger
 
+load_dotenv()
 # Setup FastAPI
 app = FastAPI(
     title=os.getenv("SERVICE_TITLE"),
@@ -31,36 +34,65 @@ app = FastAPI(
 logging.config.fileConfig(f"{os.path.dirname(__file__)}/logging.conf")
 app.add_middleware(router_logger.RouteLoggerMiddleware)
 
-# Shared secret auth | Just an additional layer of security, calls shouldn't be possible due to firewall anyhow
-# The secrets must be generated on Fusionbase side and then shared with the service
-# All secrets are unique per service
-@app.middleware("http")
-async def shared_secret_auth(request: Request, call_next):
-    secrets = os.getenv("FB_SHARED_SECRET")
-    if '|' in secrets:
-        secrets = [x.strip() for x in secrets.split('|')]
+
+# ALWAYS KEEP THE SOURCE DATA UP2DATE
+def __download_from_fusionbase():
+    data_stream = DataStream(auth={"api_key": os.getenv('FUSIONBASE_API_KEY')},
+                             connection={"base_uri": "https://api.fusionbase.com/api/v1"}, log=True)
+
+    crime_data_key = 2246748
+
+    if not os.path.exists('./data/source/crime_data.parquet'):
+        last_update = data_stream.get_meta_data(crime_data_key).get('data_updated_at')
+        df = data_stream.get_dataframe(key=crime_data_key)
+        df.to_parquet('./data/source/crime_data.parquet')
+        with open('./data/source/local_last_update.pickle', 'wb') as f:
+            pickle.dump(last_update, f)
+
     else:
-        secrets = [str(secrets).strip()]
+        last_update = data_stream.get_meta_data(crime_data_key).get('data_updated_at')
+        with open('./data/source/local_last_update.pickle', 'rb') as f:
+            local_last_update = pickle.load(f)
 
-    if request.headers.get("fb-shared-secret") is None or request.headers.get("fb-shared-secret") not in secrets:
-        return Response('NOT_AUTHORIZED', status_code=403, media_type='text/plain')
-    response = await call_next(request)
-    return response
-
-# DEFAULT PREFIX
-DEFAULT_PREFIX = f'/api/v{os.getenv("SERVICE_VERSION")}'
-
-## YOUR ROUTERS HERE
-app.include_router(
-    router.router,
-    prefix=f"{DEFAULT_PREFIX}/router",
-    responses={418: {"description": "I'm a teapot"}} # Change this
-)
+        if local_last_update != last_update:
+            df = data_stream.get_dataframe(key=crime_data_key)
+            df.to_parquet('./data/source/crime_data.parquet')
+            with open('./data/source/local_last_update.pickle', 'wb') as f:
+                pickle.dump(last_update, f)
 
 
-## MAIN ROUTES HERE
+__download_from_fusionbase()
+
+
+# # Shared secret auth | Just an additional layer of security, calls shouldn't be possible due to firewall anyhow
+# # The secrets must be generated on Fusionbase side and then shared with the service
+# # All secrets are unique per service
+# @app.middleware("http")
+# async def shared_secret_auth(request: Request, call_next):
+#     secrets = os.getenv("FB_SHARED_SECRET")
+#     if '|' in secrets:
+#         secrets = [x.strip() for x in secrets.split('|')]
+#     else:
+#         secrets = [str(secrets).strip()]
+#
+#     if request.headers.get("fb-shared-secret") is None or request.headers.get("fb-shared-secret") not in secrets:
+#         return Response('NOT_AUTHORIZED', status_code=403, media_type='text/plain')
+#     response = await call_next(request)
+#     return response
+
+
 @app.get("/")
-def read_root():
+async def read_root():
     return {"Hello": "World::ROOT"}
 
+
+@app.get("/get-crimes")
+async def get_crimes(address_string: str):
+    if not isinstance(address_string, str) or address_string == '' or address_string is None:
+        return JSONResponse(status_code=422, content={'msg': 'Your input string was not processable by the API'})
+
+    service = Service()
+    result = service.invoke(address_string=address_string)
+
+    return JSONResponse(status_code=200, content=result)
 
