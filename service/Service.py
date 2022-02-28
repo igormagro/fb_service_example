@@ -59,7 +59,7 @@ class Service:
             df = self._get_data()
             df = df.loc[:, ~df.columns.isin(['fb_id', 'source_key', 'fb_datetime', 'fb_data_version'])]
             crime_for_ags = df.loc[df['administrative_district_key'] == ags]
-            crime_for_ags = crime_for_ags.sort_values(by='reference_year', ascending=Falsepip)
+            crime_for_ags = crime_for_ags.sort_values(by='reference_year', ascending=False)
             crime_data_json = crime_for_ags.to_dict(orient='records')
 
             result = {
