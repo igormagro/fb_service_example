@@ -1,4 +1,4 @@
-FROM tiangolo/uvicorn-gunicorn:python3.8
+FROM tiangolo/uvicorn-gunicorn:python3.9
 #FROM tiangolo/uvicorn-gunicorn-fastapi:python3.7
 
 ARG GIT_TOKEN
