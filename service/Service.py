@@ -23,6 +23,7 @@ class Service:
                 self.DE_GEO_LOOKUP = json.load(fp)
                 fp.close()
 
+
         # Load crime data directly on instantiation
         self.CRIME_DATA_DF = self._get_data()
         self.CRIME_DATA_DF.sort_values(by='reference_year', ascending=False, inplace=True)
@@ -55,13 +56,12 @@ class Service:
         result = data_service.invoke(key=location_geocoding_converter_id, parameters=payload)
         return result
 
-    @classmethod
-    def _get_ags_from_zip_code(cls, zip_code):
+    def _get_ags_from_zip_code(self, zip_code):
         
         # First, try to get from local geolookup
-        if cls.DE_GEO_LOOKUP is not None:
+        if self.DE_GEO_LOOKUP is not None:
             try:
-                return str(cls.DE_GEO_LOOKUP[zip_code])
+                return str(self.DE_GEO_LOOKUP[zip_code])
             except KeyError as e:
                 pass
         
@@ -97,20 +97,15 @@ class Service:
 
         return df
 
+
     def invoke(self, address_string):
         import time
         start = time.time()
+
         try:
-            geo_data = self._get_location_geocoding(address_string)['data'][0]
-            
+            geo_data = self._get_location_geocoding(address_string)['data'][0]   
             zip_code = geo_data.get('postcode')
             ags = self._get_ags_from_zip_code(zip_code)
-            # df = self.CRIME_DATA
-            # df = df.loc[:, ~df.columns.isin(['fb_id', 'source_key', 'fb_datetime', 'fb_data_version'])]
-            # crime_for_ags = df.loc[df['administrative_district_key'] == ags]
-            # #crime_for_ags = crime_for_ags.sort_values(by='reference_year', ascending=False)
-            # crime_data_json = crime_for_ags.to_dict(orient='records')
-
             crime_data_json = self.CRIME_DATA[ags]
 
             result = {
@@ -133,9 +128,8 @@ class Service:
             }
 
         end = time.time() - start
-
         print(end)
-
+        
         return result
 
 
