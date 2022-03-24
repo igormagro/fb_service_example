@@ -1,17 +1,53 @@
 import os
 import pickle
+import re
+from pathlib import Path
+import json
 
 import pandas as pd
 from fusionbase.DataService import DataService
 from fusionbase.DataStream import DataStream
 
 
+
 class Service:
+
+    ZIP_CODE_PATTERN = re.compile(r'(D-)?(\d{5})')
+    DE_GEO_LOOKUP = None
+    CRIME_DATA_DF = None
+    CRIME_DATA = dict()
+
     def __init__(self):
+        if Path("./data/lookup/de_geo_lookup.json").exists():
+            with open("./data/lookup/de_geo_lookup.json", "r") as fp:
+                self.DE_GEO_LOOKUP = json.load(fp)
+                fp.close()
+
+        # Load crime data directly on instantiation
+        self.CRIME_DATA_DF = self._get_data()
+        self.CRIME_DATA_DF.sort_values(by='reference_year', ascending=False, inplace=True)
+        self.CRIME_DATA_DF = self.CRIME_DATA_DF.to_dict(orient='records')
+
+        for d in self.CRIME_DATA_DF:
+            if d["administrative_district_key"] not in self.CRIME_DATA:
+                self.CRIME_DATA[d["administrative_district_key"]] = list()
+            self.CRIME_DATA[d["administrative_district_key"]].append(d)            
+
         pass
 
-    @staticmethod
-    def _get_location_geocoding(address):
+    @classmethod
+    def _get_location_geocoding(cls, address):
+        # For this service we only need the postal code
+        # Check if address string directly contains postal code
+        # If yes, avoid calling geocoding service
+        zip_code = cls.ZIP_CODE_PATTERN.search(address)
+        if zip_code is not None:
+            try:
+                return {"data" : [{"postcode": zip_code.group(2).strip()}]}
+            except Exception as e:
+                pass
+
+        # Invoke request if fast pattern matching failed
         data_service = DataService(auth={"api_key": os.getenv('FUSIONBASE_API_KEY')},
                                    connection={"base_uri": "https://api.fusionbase.com/v1"})
         location_geocoding_converter_id = 40425233
@@ -19,8 +55,17 @@ class Service:
         result = data_service.invoke(key=location_geocoding_converter_id, parameters=payload)
         return result
 
-    @staticmethod
-    def _get_ags_from_zip_code(zip_code):
+    @classmethod
+    def _get_ags_from_zip_code(cls, zip_code):
+        
+        # First, try to get from local geolookup
+        if cls.DE_GEO_LOOKUP is not None:
+            try:
+                return str(cls.DE_GEO_LOOKUP[zip_code])
+            except KeyError as e:
+                pass
+        
+        # Fallback, directly call the service
         data_service = DataService(auth={"api_key": os.getenv('FUSIONBASE_API_KEY')},
                                    connection={"base_uri": "https://api.fusionbase.com/v1"})
         zip_code_converter_id = 33387026
@@ -28,13 +73,14 @@ class Service:
         result = data_service.invoke(key=zip_code_converter_id, parameters=payload)
         result = result['data']
         if len(result) < 1:
-            return
+            return None
         else:
             ags = result[0].get('administrative_district_key')
             return str(ags)
 
-    @staticmethod
-    def _get_data() -> pd.DataFrame:
+    @classmethod
+    def _get_data(cls) -> pd.DataFrame:
+        print("LOAD HERE")
         data_stream = DataStream(auth={"api_key": os.getenv('FUSIONBASE_API_KEY')},
                                  connection={"base_uri": "https://api.fusionbase.com/api/v1"}, log=True)
         crime_data_key = 2246748
@@ -52,15 +98,20 @@ class Service:
         return df
 
     def invoke(self, address_string):
+        import time
+        start = time.time()
         try:
             geo_data = self._get_location_geocoding(address_string)['data'][0]
+            
             zip_code = geo_data.get('postcode')
             ags = self._get_ags_from_zip_code(zip_code)
-            df = self._get_data()
-            df = df.loc[:, ~df.columns.isin(['fb_id', 'source_key', 'fb_datetime', 'fb_data_version'])]
-            crime_for_ags = df.loc[df['administrative_district_key'] == ags]
-            crime_for_ags = crime_for_ags.sort_values(by='reference_year', ascending=False)
-            crime_data_json = crime_for_ags.to_dict(orient='records')
+            # df = self.CRIME_DATA
+            # df = df.loc[:, ~df.columns.isin(['fb_id', 'source_key', 'fb_datetime', 'fb_data_version'])]
+            # crime_for_ags = df.loc[df['administrative_district_key'] == ags]
+            # #crime_for_ags = crime_for_ags.sort_values(by='reference_year', ascending=False)
+            # crime_data_json = crime_for_ags.to_dict(orient='records')
+
+            crime_data_json = self.CRIME_DATA[ags]
 
             result = {
                 'input': address_string,
@@ -72,11 +123,25 @@ class Service:
                 'crime_data': crime_data_json
             }
 
-        except:
+        except Exception as e:
+
+            print(e)
 
             result = {
                 'input': address_string,
                 'parsing_successful': False
             }
 
+        end = time.time() - start
+
+        print(end)
+
         return result
+
+
+# if __name__ == '__main__':
+    
+#     zip_code_match = ZIP_CODE_PATTERN.search("Agnes-Pockels-Bogen 1, 80992")
+#     if zip_code_match is not None:
+#         print(zip_code_match.group(2))
+#     print(zip_code_match)
