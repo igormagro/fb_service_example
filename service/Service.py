@@ -1,3 +1,4 @@
+from functools import lru_cache
 import os
 import pickle
 import re
@@ -15,6 +16,7 @@ class Service:
     ZIP_CODE_PATTERN = re.compile(r'(D-)?(\d{5})')
     DE_GEO_LOOKUP = None
     CRIME_DATA_DF = None
+    REFERENCE_YEAR="2020"  
     CRIME_DATA = dict()
 
     def __init__(self):
@@ -32,8 +34,37 @@ class Service:
         for d in self.CRIME_DATA_DF:
             if d["administrative_district_key"] not in self.CRIME_DATA:
                 self.CRIME_DATA[d["administrative_district_key"]] = list()
-            self.CRIME_DATA[d["administrative_district_key"]].append(d)            
-
+            self.CRIME_DATA[d["administrative_district_key"]].append(d)
+            
+            
+        self.REFERENCE_DATA = dict()
+        self.CRIME_DATA_DF = pd.DataFrame(self.CRIME_DATA_DF)
+        
+        if not Path("./data/lookup/reference_data_lookup.json").exists():
+            df = self.CRIME_DATA_DF[self.CRIME_DATA_DF["reference_year"].astype(str)=="2020"].groupby(by=["source_key"]).mean().reset_index()  
+            
+            print(df["source_key"].unique().tolist())    
+            
+            for d in df.to_dict(orient="records"):            
+                if "DEU" not in self.REFERENCE_DATA:
+                    self.REFERENCE_DATA["DEU"] = dict()
+                if "MEAN" not in self.REFERENCE_DATA["DEU"]: 
+                    self.REFERENCE_DATA["DEU"]["MEAN"] = dict()  
+                # Hardcoded year for now   
+                if self.REFERENCE_YEAR not in self.REFERENCE_DATA["DEU"]["MEAN"]: 
+                    self.REFERENCE_DATA["DEU"]["MEAN"][self.REFERENCE_YEAR] = dict()       
+                
+                d["reference_year"] = int(d["reference_year"])                          
+                self.REFERENCE_DATA["DEU"]["MEAN"][self.REFERENCE_YEAR][d["source_key"]] = d
+                
+            with open("./data/lookup/reference_data_lookup.json", "w") as fp:
+                json.dump(self.REFERENCE_DATA, fp)
+                fp.close()
+        else:
+            with open("./data/lookup/reference_data_lookup.json", "r") as fp:
+                self.REFERENCE_DATA = json.load(fp)
+                fp.close()  
+                
         pass
 
     @classmethod
@@ -98,15 +129,39 @@ class Service:
         return df
 
 
-    def invoke(self, address_string):
+    def invoke(self, address_string, reference_year, criminal_offense_keys=[]):
         import time
         start = time.time()
-
+        
         try:
             geo_data = self._get_location_geocoding(address_string)['data'][0]   
             zip_code = geo_data.get('postcode')
             ags = self._get_ags_from_zip_code(zip_code)
-            crime_data_json = self.CRIME_DATA[ags]
+            crime_data_json = list()
+            
+            if isinstance(criminal_offense_keys, list) and len(criminal_offense_keys) > 0:
+                for key, co_stats in self.CRIME_DATA.items():
+
+                    if key!=ags:
+                        continue
+                    
+                    for co_stat in co_stats:                    
+                        if co_stat["source_key"] not in criminal_offense_keys:
+                            continue
+                        
+                        if reference_year == "ANY":                    
+                            crime_data_json.append(co_stat)
+                        else:
+                            if str(co_stat["reference_year"]) == reference_year:
+                                crime_data_json.append(co_stat)                
+            else:
+                crime_data_json = self.CRIME_DATA[ags]
+            
+            
+            
+            reference_data_points = list()
+            for co_key in criminal_offense_keys:
+                reference_data_points.append(self.REFERENCE_DATA["DEU"]["MEAN"][str(self.REFERENCE_YEAR)][co_key])   
 
             result = {
                 'input': address_string,
@@ -115,8 +170,14 @@ class Service:
                 'city': geo_data.get('city'),
                 'state': geo_data.get('state'),
                 'administrative_district_key': ags,
-                'crime_data': crime_data_json
+                'crime_data': crime_data_json,
+                'references': [{
+                    "area": "DEU",
+                    "type": "MEAN",
+                    "data": reference_data_points
+                }] 
             }
+            
 
         except Exception as e:
 
