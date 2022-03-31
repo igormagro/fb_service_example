@@ -140,7 +140,7 @@ async def get_crimes(address_string: str, reference_year:str="ANY", criminal_off
     valid_criminal_offense_keys = ['****00', '***100', '***200', '***300', '*50*00', '*90*00', '------', '111000', '210000', '211000', '212000', '216000', '217000', '219000', '222000', '224000', '3***00', '326*00', '4***00', '435*00', '436*00', '510000', '515000', '515001', '530000', '540000', '621100', '621110', '621120', '630000', '640000', '674000', '725000', '730000', '890000', '892000', '892500', '897000', '899000', '899500', '972500', '980100']
     
     try:
-        if criminal_offense_keys.count(",") > 1:
+        if len(criminal_offense_keys) > 1:
             criminal_offense_keys = list(dict.fromkeys([val.strip() for val in criminal_offense_keys.split(',')]))        
             for key in criminal_offense_keys:
                 if key not in valid_criminal_offense_keys:
