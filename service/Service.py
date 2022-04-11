@@ -118,7 +118,7 @@ class Service:
         payload = {'name': 'address', 'value': address}
         result = data_service.invoke(
             key=location_geocoding_converter_id, parameters=payload)
-        return result
+        return result['place]
 
     def _get_ags_from_zip_code(self, zip_code):
 
