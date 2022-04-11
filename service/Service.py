@@ -16,6 +16,9 @@ class Service:
     DE_GEO_LOOKUP = None
     CRIME_DATA_DF = None
     REFERENCE_YEAR = "2020"
+    STATISTIC_COLUMNS = ["number_of_cases", "frequency_count", "number_of_attempted_cases", "threatened_with_firearm", "shot_with_firearm", "male_suspects", "female_suspects",  "number_of_non_german_suspects",
+                        "number_of_suspects",
+                        "cleared_cases"]
     CRIME_DATA = dict()
 
     def __init__(self):
@@ -45,11 +48,35 @@ class Service:
 
         if not Path("./data/lookup/reference_data_lookup.json").exists():
             df = self.CRIME_DATA_DF[self.CRIME_DATA_DF["reference_year"].astype(
-                str) == "2020"].groupby(by=["source_key"]).mean().reset_index()
+                str) == self.REFERENCE_YEAR]
 
-            print(df["source_key"].unique().tolist())
+            
+            sum_df = df.groupby(by=["source_key"]).sum().reset_index()
+            for c in self.STATISTIC_COLUMNS:                
+                sum_df[f'{c}'] = sum_df[c].apply(lambda x: self.get_rel_to_pop(x, 83121363)) #  83121363 hardcoded German population as of 2021
+            
+            for d in sum_df.to_dict(orient="records"):
+                
+                # Doesn't make sense to normalize this per 100k
+                for _remove in ["number_of_attempted_cases_in_percent", "clearance_rate", "non_german_suspects_in_percent"]:
+                    del d[_remove]
 
-            for d in df.to_dict(orient="records"):
+                if "DEU" not in self.REFERENCE_DATA:
+                    self.REFERENCE_DATA["DEU"] = dict()
+                if "NORMALIZED_PER_100K" not in self.REFERENCE_DATA["DEU"]:
+                    self.REFERENCE_DATA["DEU"]["NORMALIZED_PER_100K"] = dict()
+                # Hardcoded year for now
+                if self.REFERENCE_YEAR not in self.REFERENCE_DATA["DEU"]["NORMALIZED_PER_100K"]:
+                    self.REFERENCE_DATA["DEU"]["NORMALIZED_PER_100K"][self.REFERENCE_YEAR] = dict(
+                    )
+
+                d["reference_year"] = int(d["reference_year"])
+                self.REFERENCE_DATA["DEU"]["NORMALIZED_PER_100K"][self.REFERENCE_YEAR][d["source_key"]] = d
+                self.REFERENCE_DATA["DEU"]["NORMALIZED_PER_100K"][self.REFERENCE_YEAR][d["source_key"]]["reference_year"] = int(self.REFERENCE_YEAR) # Otherwise reference year is summed up
+
+
+            mean_df = df.groupby(by=["source_key"]).mean().round(2).reset_index()
+            for d in mean_df.to_dict(orient="records"):
                 if "DEU" not in self.REFERENCE_DATA:
                     self.REFERENCE_DATA["DEU"] = dict()
                 if "MEAN" not in self.REFERENCE_DATA["DEU"]:
@@ -170,11 +197,16 @@ class Service:
             else:
                 crime_data_json = self.CRIME_DATA[ags]
 
-            reference_data_points = list()
+            reference_data_points = {
+                "MEAN": list(),
+                "NORMALIZED_PER_100K": list()
+            }
             for co_key in criminal_offense_keys:
-                reference_data_points.append(
+                reference_data_points["MEAN"].append(
                     self.REFERENCE_DATA["DEU"]["MEAN"][str(self.REFERENCE_YEAR)][co_key])
-            
+                reference_data_points["NORMALIZED_PER_100K"].append(
+                    self.REFERENCE_DATA["DEU"]["NORMALIZED_PER_100K"][str(self.REFERENCE_YEAR)][co_key])
+
             population = self.POP_LOOKUP.get(str(ags), None)
             population = population['population']
             print(f'POPULATION FOR AGS {ags} IS: {population}')
@@ -189,10 +221,10 @@ class Service:
                                    "number_of_suspects",
                                    "cleared_cases"]
                 
-                for c in integer_columns:
+                for c in self.STATISTIC_COLUMNS:
                     crime_data_to_pop[f'{c}'] = crime_data_to_pop[c].apply(lambda x: self.get_rel_to_pop(x, population))
                 
-                crime_data_to_pop.rename(columns={c:f'{c}_per100k' for c in integer_columns}, inplace=True)
+                #crime_data_to_pop.rename(columns={c:f'{c}_per100k' for c in self.STATISTIC_COLUMNS}, inplace=True)
                 
                     
                 crime_data_to_pop = crime_data_to_pop.to_dict(orient='records')
@@ -207,10 +239,16 @@ class Service:
                 'crime_data': crime_data_json,
                 'crime_data_per_100k': crime_data_to_pop,
                 'ags_population': population,
-                'references': [{
+                'references': [
+                {
+                    "area": "DEU",
+                    "type": "NORMALIZED_PER_100K",
+                    "data": reference_data_points["NORMALIZED_PER_100K"]
+                },                
+                {
                     "area": "DEU",
                     "type": "MEAN",
-                    "data": reference_data_points
+                    "data": reference_data_points["MEAN"]
                 }]
             }
 
