@@ -1,4 +1,4 @@
-# Fusionbase Service: 'Name' 
+# Fusionbase Service: Crime
 
 This repository contains the python code for the {NAME} service.
 
@@ -9,7 +9,7 @@ Look at the Dockerfile for more information.
 
 The following command builds the Docker image
 ```bash
-docker build --build-arg GIT_TOKEN=$GIT_TOKEN -t fb_service__NAME_OF_SERVICE .
+docker build --build-arg GIT_TOKEN=$GIT_TOKEN -t fb_service__crime .
 ```
 
 With the following command you can run the Docker container
