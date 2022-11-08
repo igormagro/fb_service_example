@@ -106,8 +106,8 @@ def __build_ags_lookup():
 
 @app.on_event("startup")
 async def startup_event():
-    __download_from_fusionbase()
-    __build_ags_lookup()
+    #__download_from_fusionbase()
+    #__build_ags_lookup()
     print("STARTUP DONE")
     
 
