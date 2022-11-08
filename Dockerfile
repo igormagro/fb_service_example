@@ -11,7 +11,8 @@ RUN pip install pandas==1.3.0
 RUN pip install pydantic
 
 # Install Fusionbase packages
-RUN pip install -e git+https://$GIT_TOKEN:x-oauth-basic@github.com/FusionbaseHQ/fb_user__fusionbase_py.git#egg=fusionbase
+#RUN pip install -e git+https://$GIT_TOKEN:x-oauth-basic@github.com/FusionbaseHQ/fb_user__fusionbase_py.git#egg=fusionbase
+RUN pip install fusionbase==0.1.3
 
 # Install requirements
 COPY requirements.txt requirements.txt
