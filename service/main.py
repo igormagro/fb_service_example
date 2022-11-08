@@ -131,12 +131,13 @@ async def startup_event():
 async def read_root():
     return {"Hello": "World::ROOT"}
 
-service = Service()
+
 @app.get("/get-crimes")
 async def get_crimes(address_string: str, reference_year:str="ANY", criminal_offense_keys:str = ""):
     if not isinstance(address_string, str) or address_string == '' or address_string is None:
         return JSONResponse(status_code=422, content={'msg': 'Your input string was not processable by the API'})
     
+    service = Service()
     valid_criminal_offense_keys = ['****00', '***100', '***200', '***300', '*50*00', '*90*00', '------', '111000', '210000', '211000', '212000', '216000', '217000', '219000', '222000', '224000', '3***00', '326*00', '4***00', '435*00', '436*00', '510000', '515000', '515001', '530000', '540000', '621100', '621110', '621120', '630000', '640000', '674000', '725000', '730000', '890000', '892000', '892500', '897000', '899000', '899500', '972500', '980100']
     
     try:
