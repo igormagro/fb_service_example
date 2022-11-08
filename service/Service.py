@@ -150,16 +150,25 @@ class Service:
                                  connection={"base_uri": "https://api.fusionbase.com/api/v1"}, log=True)
         crime_data_key = 2246748
 
-        if not os.path.exists('./data/source/crime_data.parquet'):
+        if not os.path.exists('./data/source/crime_data.pkl'):
             last_update = data_stream.get_meta_data(
                 crime_data_key).get('data_updated_at')
             df = data_stream.get_dataframe(key=crime_data_key)
-            df.to_parquet('./data/source/crime_data.parquet')
+            #df.to_parquet('./data/source/crime_data.parquet')
+            df.to_pickle('./data/source/crime_data.pkl')
             with open('./data/source/local_last_update.pickle', 'wb') as f:
                 pickle.dump(last_update, f)
 
         else:
-            df = pd.read_parquet('./data/source/crime_data.parquet')
+            #df = pd.read_parquet('./data/source/crime_data.parquet')
+            df = pd.read_pickle('./data/source/crime_data.pkl')
+            # df.to_pickle('./data/source/crime_data.pkl')
+            #df["administrative_district_key"] = df["administrative_district_key"].astype(str)
+            #df = pd.read_json('./data/source/crime_data.json', orient="records")
+            #df["administrative_district_key"] = df["administrative_district_key"].astype(str)
+            #print(df)
+            #df.info()
+            #df.to_json('./data/source/crime_data.json', orient="records")
 
         return df
     
@@ -180,8 +189,9 @@ class Service:
             crime_data_json = list()
 
             if isinstance(criminal_offense_keys, list) and len(criminal_offense_keys) > 0:
-                for key, co_stats in self.CRIME_DATA.items():
+                for key, co_stats in self.CRIME_DATA.items(): 
 
+                    # print(key)
                     if key != ags:
                         continue
 
