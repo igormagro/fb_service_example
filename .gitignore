@@ -9,7 +9,6 @@ __pycache__/
 
 service/data/logs/*
 service/data/staging/*
-service/data/source/*
 
 !service/data/logs/.gitkeep 
 !service/data/source/.gitkeep 

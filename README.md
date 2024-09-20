@@ -1,25 +1,27 @@
-# Fusionbase Service: Crime
+# Fusionbase Service: 'Name'
 
 This repository contains the python code for the {NAME} service.
 
-## 👨‍💻 Development 
+## 👨‍💻 Development
 
 All Fusionbase related credentials 🔒 are passed via environment variables.
 Look at the Dockerfile for more information.
 
 The following command builds the Docker image
+
 ```bash
-docker build --build-arg GIT_TOKEN=$GIT_TOKEN -t fb_service__crime .
+docker build --build-arg GIT_TOKEN=$GIT_TOKEN -t fb_service__NAME_OF_SERVICE .
 ```
 
 With the following command you can run the Docker container
+
 ```bash
 docker run -p 8000:80 fb_service__NAME_OF_SERVICE
 ```
 
 <!-- optional section start -->
 
-##  🗒 Notes
+## 🗒 Notes
 Please install package xyz by using:
 ```
 brew install xyz
